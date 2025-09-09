@@ -1,0 +1,61 @@
+{
+    "name": "EcoRing",
+    "short_name": "EcoRing",
+    "description": "Control de cámara ESP32",
+    "start_url": "./index.html?source=pwa",
+    "scope": "./",
+    "display": "standalone",
+    "display_override": ["window-controls-overlay", "standalone", "browser"],
+    "background_color": "#f0f2f5",
+    "theme_color": "#000000",
+    "orientation": "portrait",
+    "prefer_related_applications": false,
+    "categories": ["utilities", "productivity"],
+    "screenshots": [],
+    "shortcuts": [
+        {
+            "name": "Inicio",
+            "short_name": "Inicio",
+            "url": "./index.html",
+            "icons": [{ "src": "icons/icon-192x192.png", "sizes": "192x192" }]
+        }
+    ],
+    "icons": [
+        {
+            "src": "icons/icon-72x72.png",
+            "sizes": "72x72",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-96x96.png",
+            "sizes": "96x96",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "icons/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "related_applications": [],
+    "protocol_handlers": [],
+    "share_target": {
+        "action": "./index.html",
+        "method": "GET",
+        "enctype": "application/x-www-form-urlencoded",
+        "params": {
+            "title": "title",
+            "text": "text",
+            "url": "url"
+        }
+    }
+}

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Service Worker</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #e2e3e5; color: #383d41; }
+    </style>
+</head>
+<body>
+    <h1>Prueba de Service Worker</h1>
+    <div id="status">
+        <p>Verificando compatibilidad con Service Workers...</p>
+    </div>
+
+    <div id="cache-status" class="status info">
+        <h3>Estado de la caché:</h3>
+        <pre id="cache-content">Cargando...</pre>
+    </div>
+
+    <div>
+        <button id="unregister" style="padding: 10px 15px; background-color: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            Anular registro del Service Worker
+        </button>
+        <button id="update" style="padding: 10px 15px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: 10px;">
+            Actualizar Service Worker
+        </button>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const cacheContent = document.getElementById('cache-content');
+        
+        function updateStatus(message, isError = false) {
+            const p = document.createElement('p');
+            p.textContent = message;
+            p.className = isError ? 'status error' : 'status success';
+            statusDiv.appendChild(p);
+            console.log(message);
+        }
+
+        // Verificar compatibilidad
+        if ('serviceWorker' in navigator) {
+            updateStatus('✅ Navegador compatible con Service Workers');
+            
+            // Registrar el service worker
+            navigator.serviceWorker.register('service-worker.js')
+                .then(registration => {
+                    updateStatus(`✅ Service Worker registrado correctamente (${registration.scope})`);
+                    
+                    // Verificar si está controlado
+                    if (navigator.serviceWorker.controller) {
+                        updateStatus('✅ La página está siendo controlada por el Service Worker');
+                    } else {
+                        updateStatus('⚠️ La página NO está siendo controlada por el Service Worker. ¿Es la primera carga?', true);
+                    }
+                    
+                    // Verificar estado
+                    if (registration.installing) {
+                        updateStatus('🔄 Service Worker en proceso de instalación...');
+                    } else if (registration.waiting) {
+                        updateStatus('⏳ Service Worker instalado y esperando a ser activado');
+                    } else if (registration.active) {
+                        updateStatus('✅ Service Worker activo y listo');
+                    }
+                    
+                    // Escuchar cambios
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        updateStatus('🔄 Nueva versión del Service Worker encontrada, instalando...');
+                        
+                        newWorker.addEventListener('statechange', () => {
+                            updateStatus(`🔄 Estado del Service Worker: ${newWorker.state}`);
+                            
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                updateStatus('✅ Nueva versión instalada. Actualiza la página para activarla.');
+                            } else if (newWorker.state === 'activated') {
+                                updateStatus('✅ Nueva versión activada');
+                            }
+                        });
+                    });
+                    
+                    // Verificar actualizaciones
+                    registration.update().then(() => {
+                        updateStatus('✅ Búsqueda de actualizaciones completada');
+                    }).catch(err => {
+                        updateStatus(`❌ Error al buscar actualizaciones: ${err.message}`, true);
+                    });
+                    
+                    // Mostrar caché
+                    updateCacheStatus();
+                    
+                })
+                .catch(error => {
+                    updateStatus(`❌ Error al registrar el Service Worker: ${error.message}`, true);
+                });
+                
+            // Manejar errores
+            navigator.serviceWorker.addEventListener('error', event => {
+                updateStatus(`❌ Error en el Service Worker: ${event.message}`, true);
+            });
+            
+        } else {
+            updateStatus('❌ Tu navegador no soporta Service Workers', true);
+        }
+        
+        // Función para mostrar el estado de la caché
+        async function updateCacheStatus() {
+            try {
+                const cacheNames = await caches.keys();
+                let cacheInfo = 'Cachés encontradas:\n\n';
+                
+                for (const cacheName of cacheNames) {
+                    const cache = await caches.open(cacheName);
+                    const requests = await cache.keys();
+                    
+                    cacheInfo += `🔹 ${cacheName}:\n`;
+                    cacheInfo += `   Recursos en caché: ${requests.length}\n`;
+                    requests.forEach((request, index) => {
+                        cacheInfo += `   ${index + 1}. ${request.url}\n`;
+                    });
+                    cacheInfo += '\n';
+                }
+                
+                if (cacheNames.length === 0) {
+                    cacheInfo = 'No se encontraron cachés.';
+                }
+                
+                cacheContent.textContent = cacheInfo;
+                document.getElementById('cache-status').classList.remove('info');
+                document.getElementById('cache-status').classList.add('success');
+                
+            } catch (error) {
+                cacheContent.textContent = `Error al acceder a la caché: ${error.message}`;
+                document.getElementById('cache-status').classList.remove('info');
+                document.getElementById('cache-status').classList.add('error');
+            }
+        }
+        
+        // Botón para anular el registro
+        document.getElementById('unregister').addEventListener('click', async () => {
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (let registration of registrations) {
+                    await registration.unregister();
+                    updateStatus('✅ Service Worker desregistrado correctamente');
+                    
+                    // Limpiar cachés
+                    const cacheNames = await caches.keys();
+                    for (const cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                    }
+                    updateStatus('✅ Cachés limpiadas');
+                    
+                    // Actualizar estado
+                    setTimeout(() => window.location.reload(), 1000);
+                }
+            } catch (error) {
+                updateStatus(`❌ Error al desregistrar: ${error.message}`, true);
+            }
+        });
+        
+        // Botón para forzar actualización
+        document.getElementById('update').addEventListener('click', () => {
+            if (navigator.serviceWorker.controller) {
+                navigator.serviceWorker.controller.postMessage({action: 'skipWaiting'});
+                updateStatus('🔄 Forzando actualización del Service Worker...');
+                setTimeout(() => window.location.reload(), 1000);
+            } else {
+                updateStatus('❌ No hay un Service Worker activo para actualizar', true);
+            }
+        });
+        
+        // Escuchar mensajes del Service Worker
+        navigator.serviceWorker.addEventListener('message', event => {
+            console.log('Mensaje recibido del Service Worker:', event.data);
+            updateStatus(`📨 Mensaje del Service Worker: ${JSON.stringify(event.data)}`);
+        });
+    </script>
+</body>
+</html>

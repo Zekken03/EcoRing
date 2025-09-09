@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EcoRing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="./manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="EcoRing">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <meta name="description" content="Aplicación para visualizar cámara ESP32 y controlar cerradura.">
+    <meta name="theme-color" content="#000000">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="EcoRing">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" href="icons/icon-192x192.png">
+
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+            box-sizing: border-box;
+        }
+        
+        body {
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            min-height: 100vh;
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        /* Estilos para el contenedor principal de la aplicación */
+        .app-container {
+            width: 100%;
+            max-width: 100%;
+            height: 100%;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+        }
+        
+        .header-section {
+            flex-shrink: 0;
+        }
+        
+        .controls-section {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .video-section {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex-grow: 1;
+            min-height: 0;
+        }
+        
+        .lock-status-section {
+            flex-shrink: 0;
+            margin-top: auto;
+            padding-top: 16px;
+        }
+        /* Estilos para el botón */
+        .btn {
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background-color: #000000;
+            color: #ffffff;
+        }
+        .btn-primary:hover {
+            background-color: #333333;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+        }
+        .btn-secondary {
+            background-color: #e0e0e0;
+            color: #333333;
+        }
+        .btn-secondary:hover {
+            background-color: #d0d0d0;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+        }
+        /* Estilos para el input */
+        .input-field {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s ease-in-out;
+        }
+        .input-field:focus {
+            border-color: #3b82f6; /* Color azul al enfocar */
+        }
+        /* Estilos para el contenedor de video */
+        .video-container {
+            width: 100%;
+            max-width: 800px; /* Ancho máximo para el contenedor de video */
+            height: 45vh; /* Altura fija del 45% del viewport */
+            max-height: 500px; /* Altura máxima para pantallas grandes */
+            position: relative;
+            background-color: #000000;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 10px 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            aspect-ratio: 16/9; /* Mantener relación de aspecto 16:9 */
+        }
+        .video-container img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain; /* Muestra todo el video sin recortar */
+            background-color: #000;
+            transform: scale(1.02); /* Pequeño ajuste para evitar bordes */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="app-container">
+        <div class="header-section">
+            <header class="flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">EcoRing</h1>
+            </header>
+            <p class="text-base text-gray-700">¡Hola Pamela!</p>
+        </div>
+
+        <div class="controls-section">
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <label for="cameraIp" class="text-gray-700 font-medium text-sm">CÁMARA IP:</label>
+                    <div class="flex items-center gap-2">
+                        <span id="connectionStatus" class="text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-700 font-medium">Desconectado</span>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="cameraIp" class="input-field flex-grow text-sm p-3 h-11 border-2 border-gray-200 rounded-lg focus:border-blue-500" placeholder="192.168.1.100">
+                    <button id="connectBtn" class="btn btn-primary px-4 py-0 text-sm whitespace-nowrap h-11 rounded-lg text-base">Conectar</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="video-section">
+            <div class="video-container">
+                <img id="videoStream" src="" alt="Video en vivo de la cámara" class="hidden" crossorigin="anonymous">
+            </div>
+        </div>
+
+        <div class="lock-status-section">
+            <div class="flex items-center justify-between text-base text-gray-800 font-medium py-2">
+                <span class="text-sm text-gray-700 font-semibold">ESTADO CERRADURA:</span>
+                <div class="flex items-center gap-2">
+                    <span id="lockStatusText" class="text-sm font-semibold text-gray-800">BLOQUEADA</span>
+                    <span id="lockStatusIcon" class="text-red-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3 mt-4">
+                <button id="unlockBtn" class="btn btn-primary w-full py-3 text-base font-semibold rounded-lg bg-opacity-100 hover:bg-opacity-90 transition-opacity">Desbloquear</button>
+                <button id="notificationsBtn" class="btn btn-secondary w-full py-3 text-base font-medium rounded-lg">Notificaciones</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="messageModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-lg p-6 shadow-xl max-w-sm w-full text-center">
+            <p id="modalMessage" class="text-lg font-semibold mb-4"></p>
+            <button id="modalCloseBtn" class="btn btn-primary px-6 py-2">Cerrar</button>
+        </div>
+    </div>
+
+    <script>
+        // Función para mostrar mensajes modales personalizados
+        function showMessageModal(message) {
+            const modal = document.getElementById('messageModal');
+            const modalMessage = document.getElementById('modalMessage');
+            modalMessage.textContent = message;
+            modal.classList.remove('hidden');
+        }
+
+        // Event listener para cerrar el modal
+        document.getElementById('modalCloseBtn').addEventListener('click', () => {
+            document.getElementById('messageModal').classList.add('hidden');
+        });
+
+        // Obtener elementos del DOM
+        const cameraIpInput = document.getElementById('cameraIp');
+        const connectBtn = document.getElementById('connectBtn');
+        let videoStream = document.getElementById('videoStream'); // Use 'let' as it will be reassigned
+        const connectionStatus = document.getElementById('connectionStatus');
+        const unlockBtn = document.getElementById('unlockBtn');
+        const notificationsBtn = document.getElementById('notificationsBtn');
+        const lockStatusIcon = document.getElementById('lockStatusIcon');
+
+        let isLocked = true; // Estado inicial de la cerradura
+
+        // Cargar la IP guardada al iniciar la app
+        window.onload = () => {
+            const savedIp = localStorage.getItem('esp32CameraIp');
+            if (savedIp) {
+                cameraIpInput.value = savedIp;
+                // Llamar a setVideoStream con la IP guardada al cargar la página
+                setVideoStream(savedIp); 
+            }
+
+            // Registrar el Service Worker para PWA
+            // Se añade una verificación para evitar el registro si el protocolo es 'blob:'
+            if ('serviceWorker' in navigator) {
+                if (window.location.protocol === 'blob:') {
+                    console.warn('Advertencia: Los Service Workers no pueden registrarse desde un protocolo "blob:". Despliega en HTTP/HTTPS para habilitar la PWA.');
+                } else {
+                    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+                        .then(registration => {
+                            console.log('Service Worker registrado con éxito:', registration);
+                        })
+                        .catch(error => {
+                            console.error('Fallo el registro del Service Worker:', error);
+                        });
+                }
+            }
+        };
+
+        // Configuración de la cámara
+        const CAMERA_CONFIG = {
+            // **Important:** Set this to true to force Ngrok for public/HTTPS access
+            // Set to false if you want to try local IP first when on a non-HTTPS page (e.g., development on http://localhost)
+            forceTunnel: true, 
+            
+            // Your Ngrok tunnel URL (ALWAYS update this with the *current* Ngrok URL if using a free plan)
+            // Asegúrate de que esta URL sea la que Ngrok te da actualmente y que esté tunelizando al puerto 81 de tu ESP32-CAM.
+            tunnelBaseUrl: 'https://fd69-2806-1016-c-d144-9526-3659-b116-9c9b.ngrok-free.app',
+            
+            // Common ESP32-CAM stream paths
+            streamPaths: [
+                '/stream',        // Most common for ESP32-CAM (and confirmed by you for port 81)
+                '/cam.mjpeg',     // Common in ESP32-CAM examples
+                '/video',         // Alternative common path
+                '/mjpeg',         // Another variant
+                '/snapshot.jpg'   // Fallback for a static image if video fails
+            ],
+            
+            // Timeout for initial connection attempt (in milliseconds)
+            timeout: 7000, 
+            
+            debug: true // Show debug information in console
+        };
+
+        /**
+         * Determines the base URL for the stream (either local HTTP or Ngrok HTTPS).
+         * @param {string} localIp The local IP address of the ESP32-CAM.
+         * @returns {string|null} The determined base URL or null if no valid option.
+         */
+        function getBaseStreamUrl(localIp) {
+            const isHttpsPage = window.location.protocol === 'https:';
+
+            if (CAMERA_CONFIG.forceTunnel && CAMERA_CONFIG.tunnelBaseUrl) {
+                console.log("Forzando conexión a través del túnel:", CAMERA_CONFIG.tunnelBaseUrl);
+                return CAMERA_CONFIG.tunnelBaseUrl.replace(/\/+$/, ''); // Ensure no trailing slash
+            }
+
+            if (isHttpsPage) {
+                // If the PWA is loaded over HTTPS, we MUST use an HTTPS source
+                if (CAMERA_CONFIG.tunnelBaseUrl) {
+                    console.log("Página es HTTPS, usando URL del túnel:", CAMERA_CONFIG.tunnelBaseUrl);
+                    return CAMERA_CONFIG.tunnelBaseUrl.replace(/\/+$/, '');
+                } else {
+                    console.warn("Página es HTTPS pero no hay URL de túnel configurada. La conexión a la IP local será bloqueada por la política de Contenido Mixto.");
+                    return null; // Force failure for mixed content
+                }
+            } else {
+                // If the PWA is loaded over HTTP (e.g., http://localhost), we can try local IP
+                console.log("Página es HTTP, usando IP local:", `http://${localIp}:81`); // Agregamos el puerto 81 aquí
+                return `http://${localIp}:81`; // Aseguramos el puerto 81 para la conexión local
+            }
+        }
+
+        /**
+         * Attempts to find a working stream path for the given base URL.
+         * @param {string} baseUrl The determined base URL (e.g., 'http://192.168.1.65' or 'https://your.ngrok.app').
+         * @returns {Promise<string|null>} The working stream path (e.g., '/stream') or null if none found.
+         */
+        async function findWorkingStreamPath(baseUrl) {
+            console.group('Buscando ruta de stream funcional...');
+
+            if (!baseUrl) {
+                console.error("No se pudo determinar una URL base para el stream.");
+                console.groupEnd();
+                return null;
+            }
+
+            for (const path of CAMERA_CONFIG.streamPaths) {
+                const testUrl = `${baseUrl}${path}`;
+                console.log(`Probando: ${testUrl}`);
+
+                try {
+                    // Create an AbortController to implement a timeout for the fetch request
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2 second timeout per path
+
+                    // Use HEAD request with no-cors. If it succeeds, it means the server responded.
+                    // For MJPEG streams, we often can't rely on response.ok or headers directly due to 'no-cors'.
+                    // The success of fetch itself indicates a potential connection.
+                    await fetch(testUrl, {
+                        method: 'HEAD',
+                        mode: 'no-cors',
+                        signal: controller.signal // Apply the timeout signal
+                    });
+                    clearTimeout(timeoutId); // Clear timeout if fetch completes in time
+
+                    // If we reached here, the HEAD request didn't fail or timeout.
+                    // This is the best we can do with 'no-cors' for connection testing.
+                    console.log(`✅ Ruta accesible (HEAD): ${testUrl}`);
+                    console.groupEnd();
+                    return path; // Return the working path
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        console.log(`❌ ${testUrl} timed out.`);
+                    } else {
+                        console.log(`❌ ${testUrl} no accesible:`, error.message);
+                    }
+                }
+                await new Promise(resolve => setTimeout(resolve, 50)); // Small delay between attempts
+            }
+
+            console.warn('❌ Ninguna ruta de stream funcionó con la IP/Túnel proporcionada.');
+            console.groupEnd();
+            return null; // No working path found
+        }
+
+        /**
+         * Sets the video stream source.
+         * @param {string} ip The local IP address of the ESP32-CAM.
+         */
+        async function setVideoStream(ip) {
+            console.group('Iniciando conexión a la cámara');
+            
+            if (!ip) {
+                console.error('No se proporcionó una IP de cámara');
+                updateConnectionStatus('disconnected');
+                console.groupEnd();
+                return;
+            }
+
+            console.log('Obteniendo URL del stream...');
+            updateConnectionStatus('connecting');
+
+            // Clear any existing stream refresh interval
+            if (window.streamRefreshInterval) {
+                clearInterval(window.streamRefreshInterval);
+            }
+
+            const baseUrl = getBaseStreamUrl(ip);
+            if (!baseUrl) {
+                updateConnectionStatus('error', 'No se pudo determinar una URL de stream válida (posiblemente por Contenido Mixto).');
+                console.groupEnd();
+                return;
+            }
+
+            const workingPath = await findWorkingStreamPath(baseUrl);
+
+            if (!workingPath) {
+                updateConnectionStatus('error', 'No se pudo encontrar una ruta de stream funcional. Verifica la dirección IP o el túnel.');
+                console.groupEnd();
+                return;
+            }
+
+            const streamUrl = `${baseUrl}${workingPath}`;
+            console.log('URL final del stream:', streamUrl);
+
+            // Recreate the image element to ensure a fresh connection for MJPEG
+            const newImg = new Image();
+            newImg.id = 'videoStream';
+            newImg.alt = 'Video en vivo de la cámara';
+            newImg.className = ''; // Remove hidden class
+            newImg.crossOrigin = 'anonymous'; // May or may not be needed, but good practice
+
+            newImg.style.width = '100%';
+            newImg.style.height = '100%';
+            newImg.style.objectFit = 'contain';
+            newImg.style.backgroundColor = '#000';
+
+            // Add an explicit timeout for the image loading
+            let imgLoadTimeout = setTimeout(() => {
+                console.warn('El stream de la imagen tardó demasiado en cargar.');
+                newImg.onerror(); // Manually trigger onerror
+            }, CAMERA_CONFIG.timeout);
+
+            newImg.onload = () => {
+                clearTimeout(imgLoadTimeout); // Clear timeout on successful load
+                console.log('✅ Stream cargado correctamente');
+                updateConnectionStatus('connected');
+                // Replace the old videoStream element with the new one
+                if (videoStream.parentNode) {
+                    videoStream.parentNode.replaceChild(newImg, videoStream);
+                }
+                videoStream = newImg; // Update the reference
+                console.groupEnd();
+            };
+
+            newImg.onerror = (e) => {
+                clearTimeout(imgLoadTimeout); // Clear timeout on error
+                console.error('❌ Error al cargar el stream:', e);
+                updateConnectionStatus('error', 'Error al cargar el stream. Revisa la IP/Túnel o la conexión.');
+                console.groupEnd();
+            };
+
+            // Set the source with a timestamp to prevent caching
+            const timestamp = new Date().getTime();
+            newImg.src = `${streamUrl}${streamUrl.includes('?') ? '&' : '?'}t=${timestamp}`;
+
+            // Configurar recarga automática cada 5 segundos (para streams MJPEG)
+            window.streamRefreshInterval = setInterval(() => {
+                // Solo recargar si la imagen ya se ha cargado (para evitar bucles de error)
+                if (newImg.complete && newImg.naturalWidth !== 0) {
+                    const newTimestamp = new Date().getTime();
+                    newImg.src = `${streamUrl}${streamUrl.includes('?') ? '&' : '?'}t=${newTimestamp}`;
+                }
+            }, 5000); // Recargar cada 5 segundos
+        }
+
+        // Función para actualizar el estado de la conexión
+        function updateConnectionStatus(status, message = '') {
+            const statusSpan = document.getElementById('connectionStatus');
+            switch (status) {
+                case 'connecting':
+                    statusSpan.textContent = 'Conectando...';
+                    statusSpan.className = 'text-xs px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 font-medium';
+                    videoStream.classList.add('hidden'); // Hide until connected
+                    break;
+                case 'connected':
+                    videoStream.classList.remove('hidden');
+                    statusSpan.textContent = 'Conectado';
+                    statusSpan.className = 'text-xs px-3 py-1 rounded-full bg-green-100 text-green-700 font-medium';
+                    break;
+                case 'error':
+                    videoStream.classList.add('hidden');
+                    statusSpan.textContent = 'Error de conexión';
+                    statusSpan.className = 'text-xs px-3 py-1 rounded-full bg-red-100 text-red-700 font-medium';
+                    if (message) {
+                        showMessageModal(message);
+                    }
+                    videoStream.src = ''; // Clear the source on error
+                    break;
+                case 'disconnected':
+                    videoStream.src = '';
+                    videoStream.classList.add('hidden');
+                    statusSpan.textContent = 'Desconectado';
+                    statusSpan.className = 'text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-700 font-medium';
+                    break;
+            }
+        }
+
+        // Evento click para el botón "Conectar"
+        connectBtn.addEventListener('click', () => {
+            const ip = cameraIpInput.value.trim();
+            if (ip) {
+                localStorage.setItem('esp32CameraIp', ip); // Guardar la IP
+                setVideoStream(ip);
+            } else {
+                showMessageModal('Por favor, ingresa una dirección IP válida para la cámara.');
+            }
+        });
+
+        // Evento click para el botón "Desbloquear"
+        unlockBtn.addEventListener('click', () => {
+            isLocked = !isLocked; // Alternar estado
+            
+            // Actualizar el texto del estado
+            const lockStatusText = document.getElementById('lockStatusText');
+            
+            if (isLocked) {
+                // Estado BLOQUEADO
+                lockStatusIcon.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>`;
+                lockStatusIcon.classList.remove('text-green-500');
+                lockStatusIcon.classList.add('text-red-500');
+                lockStatusText.textContent = 'BLOQUEADA';
+                unlockBtn.textContent = 'Desbloquear';
+                unlockBtn.classList.remove('bg-green-500');
+                unlockBtn.classList.add('bg-black');
+                unlockBtn.classList.remove('bg-opacity-90');
+                unlockBtn.classList.add('bg-opacity-100');
+                showMessageModal('Cerradura Bloqueada');
+            } else {
+                // Estado DESBLOQUEADO
+                lockStatusIcon.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                    </svg>`;
+                lockStatusIcon.classList.remove('text-red-500');
+                lockStatusIcon.classList.add('text-green-500');
+                lockStatusText.textContent = 'DESBLOQUEADA';
+                unlockBtn.textContent = 'Bloquear';
+                unlockBtn.classList.remove('bg-green-500');
+                unlockBtn.classList.add('bg-black');
+                unlockBtn.classList.add('bg-opacity-90');
+                showMessageModal('Cerradura Desbloqueada');
+            }
+        });
+
+        // Evento click para el botón "Notificaciones"
+        notificationsBtn.addEventListener('click', () => {
+            showMessageModal('Funcionalidad de Notificaciones (aún no implementada)');
+        });
+
+        // Registrar el Service Worker
+        console.log('Iniciando registro del Service Worker...');
+        if ('serviceWorker' in navigator) {
+            if (window.location.protocol === 'blob:') {
+                console.warn('Advertencia: Los Service Workers no pueden registrarse desde un protocolo "blob:". Despliega en HTTP/HTTPS para habilitar la PWA.');
+            } else {
+                console.log('Navegador compatible con Service Workers');
+                navigator.serviceWorker.register('service-worker.js', { scope: './' })
+                    .then(registration => {
+                        console.log('ServiceWorker registrado con éxito en el ámbito:', registration.scope);
+                        if (window.matchMedia('(display-mode: standalone)').matches) {
+                            console.log('La aplicación se está ejecutando en modo standalone');
+                        } else {
+                            console.log('La aplicación NO está en modo standalone');
+                        }
+                        if (registration.active) {
+                            console.log('Service Worker está activo');
+                        } else if (registration.installing) {
+                            console.log('Service Worker está en proceso de instalación');
+                            registration.installing.addEventListener('statechange', function() {
+                                console.log('Estado del Service Worker cambiado a:', registration.installing.state);
+                            });
+                        } else if (registration.waiting) {
+                            console.log('Service Worker está esperando a ser activado');
+                        }
+                        return registration.update();
+                    })
+                    .then(() => {
+                        console.log('Service Worker actualizado');
+                    })
+                    .catch(error => {
+                        console.error('Error al registrar el ServiceWorker:', error);
+                    });
+            }
+            
+            let deferredPrompt;
+            const installButton = document.createElement('button');
+            installButton.textContent = 'Instalar App';
+            installButton.className = 'btn btn-secondary mt-4';
+            installButton.style.display = 'none';
+            document.querySelector('.app-container').appendChild(installButton);
+
+            window.addEventListener('beforeinstallprompt', (e) => {
+                console.log('Evento beforeinstallprompt activado');
+                e.preventDefault();
+                deferredPrompt = e;
+                installButton.style.display = 'block';
+                
+                installButton.onclick = () => {
+                    installButton.style.display = 'none';
+                    deferredPrompt.prompt();
+                    
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('Usuario aceptó instalar la PWA');
+                        } else {
+                            console.log('Usuario rechazó instalar la PWA');
+                        }
+                        deferredPrompt = null;
+                    });
+                };
+            });
+            
+            window.addEventListener('appinstalled', (evt) => {
+                console.log('Aplicación instalada exitosamente');
+            });
+        }
+    </script>
+</body>
+</html>
